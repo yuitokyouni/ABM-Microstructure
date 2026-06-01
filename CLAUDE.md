@@ -2,8 +2,7 @@
 <!-- このリポの「動かない事実」だけ。手順は skill、強制は hook、隔離は subagent。lint規則・コードスニペットは書かない。 -->
 
 ## What this is
-市場マイクロストラクチャの agent-based model（ABM）。エージェントの相互作用から価格形成・流動性・板挙動を生成・分析する研究リポ。
-<!-- TODO(Yuito): 1行で正確に。Speculation Game / 対象市場 / 狙う出力 を1文で。 -->
+市場微細構造の ABM。能力非対称下で「連続マッチング vs batch auction」が速度ベース抽出(実験A)と学習ベース collusion(実験B)に与える効果を測り、latency-fairness と collusion-resistance のトレードオフを検証する研究リポ。設計一次ソースは `docs/research-design.md`。
 
 ## Stack / entrypoints
 - 言語/環境: Python 3.13、依存は `uv`（`pip` も可）。Node なし。

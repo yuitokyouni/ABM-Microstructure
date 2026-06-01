@@ -5,13 +5,13 @@
 市場微細構造の ABM。能力非対称下で「連続マッチング vs batch auction」が速度ベース抽出(実験A)と学習ベース collusion(実験B)に与える効果を測り、latency-fairness と collusion-resistance のトレードオフを検証する研究リポ。設計一次ソースは `docs/research-design.md`。
 
 ## Stack / entrypoints
-- 言語/環境: Python 3.13、依存は `uv`（`pip` も可）。Node なし。
-- 主要エントリ: `<path/to/main>`（まだ未作成。file:line で指す。スニペットは貼らない）
-- 主要パッケージ/モジュール: `<package_name>`（未作成）
-<!-- TODO(Yuito): 実装が入ったらここを file:line で埋める。 -->
+- 言語/環境: Python 3.13、依存は `uv`（`pip` も可）。numpy + pytest。ABM フレームワーク不使用。Node なし。
+- 計画パッケージ: `src/microstructure`（M1 plan で確定、コードは未実装）。エントリ `microstructure.run(SimConfig) -> RunResult`。
+- 構造図の対象: `ABM_PKG=src/microstructure`。
+<!-- 実装が入ったら主要モジュールを file:line で指す。スニペットは貼らない。 -->
 
 ## Conventions
-- spec → plan → tasks → implement の順（Spec Kit 導入後は `/speckit.*`）。spec に無いものを勝手に作らない。
+- spec → plan → tasks → implement の順（`/speckit-*`、ハイフン）。spec に無いものを勝手に作らない。
 - 図は LLM に描かせず `scripts/generate_diagrams.sh` で決定論的に抽出する。
 <!-- このリポ固有の規約だけ追記。一般論は書かない。 -->
 
@@ -23,6 +23,7 @@
 - 人間向け運用マニュアル: `obsidian_ABM_microstructure/00 claude engineering playbook.md.md`
 
 <!-- SPECKIT START -->
-For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
+現在アクティブな feature: 実験A harness。plan = `specs/001-exp-a-clob-harness/plan.md`
+（spec.md / research.md / data-model.md / contracts/sim-interface.md / quickstart.md）。
+technologies・project structure・コマンドはここを読む。
 <!-- SPECKIT END -->

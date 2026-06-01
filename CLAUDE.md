@@ -22,6 +22,16 @@
 - 決定: `docs/adr/`
 - 人間向け運用マニュアル: `obsidian_ABM_microstructure/00 claude engineering playbook.md.md`
 
+## M1 Fixed Invariants（実験A harness — 実装で絶対に落とすな）
+<!-- agent に実装を委ねる場合、spec を読まなくてもここで invariants が伝播するように手で焼いてある。 -->
+- 市場オブジェクト = **CLOB/quoting-MM**、baseline **inventory-free**。pool 無し → **LVR は A で使わない**（算出不能）。
+- competitive spread = arbitrageur 逆選択への **GM break-even**（monopoly spread にしない＝knot 違反）。逆選択源は **arbitrageur**（noise ではない）。
+- **gate（原則I）**: anchor battery 合格まで実験B に進まない。許容は **tight な統計 consistency ＋ dt→0 収束**で、「緩い方」は使わない。
+- anchor battery = **GM + Kyle λ + Budish + uniform-price clearing 単体テスト**（4層、sim と独立実装）。
+- US3 は competitive で PnL ゼロ → **participation margin**（`f·noise量 − sniping − c`）で退出判定。
+- arbitrageur = **1体**（monopolist sniper＝gross 抽出極限）。競争散逸は A scope 外。
+- 詳細は `specs/001-exp-a-clob-harness/`（spec/plan/research/data-model/contracts）。
+
 <!-- SPECKIT START -->
 現在アクティブな feature: 実験A harness。plan = `specs/001-exp-a-clob-harness/plan.md`
 （spec.md / research.md / data-model.md / contracts/sim-interface.md / quickstart.md）。

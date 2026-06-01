@@ -20,7 +20,7 @@ pytest -q tests/
 ## 単発 run
 ```
 python -c "from microstructure import run; from microstructure.config import SimConfig; \
-print(run(SimConfig(n_periods=200000, seed=0, sigma=0.2, p_jump=0.05, jump_size=1.0, alpha=0.3, mechanism='continuous')))"
+print(run(SimConfig(n_periods=200000, seed=0, dt=1e-2, sigma=0.2, lambda_jump=5.0, jump_size=1.0, alpha=0.3, fee=0.0, opp_cost=0.0, mechanism='continuous')))"
 ```
 
 ## sweep（連続 vs batch の定量化 / B1 の compute 入力）

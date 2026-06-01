@@ -19,7 +19,7 @@
 
 ## D4. Glosten-Milgrom break-even（competitive spread の解析アンカー）
 - **モデル primitives（閉形式が出るよう sim primitive をこれに一致させる）**:
-  - fundamental `V`。各 period、確率 `p_jump` で ±`J` のジャンプ（対称）、それ以外は不変（baseline。GBM diffusion 版は拡張）。
+  - fundamental `V`。連続時間 jump 強度 `λ`・diffusion `σ`。1 ステップ `dt` で jump 確率 `λ·dt`、diffusion `σ·√dt`。**`dt→0` で連続時間極限＝アンカー**（D6 収束チェックの土台）。jump size ±`J` 対称。
   - 各 period に taker 1名到着：確率 `alpha` で arbitrageur（informed＝ジャンプ後 `V` を知り、利益的な側を取る）、確率 `1-alpha` で noise（50/50 で買い/売り、無情報）。
   - MM は mid `m`（`V` の事前期待）周りに half-spread `h` で両側気配（inventory-free＝在庫で歪めない）。
 - **break-even 条件**: ゼロ利潤 `E[MM profit | trade] = 0`。informed 買いで MM は `(V-ask)` を失い、noise 買いで `h` を得る。これを解いた `h*` が competitive half-spread。
@@ -27,14 +27,29 @@
 - **Rationale**: 解析側と sim 側が同一概念・別実装＝共有バグを排除（A2/構造決定）。
 - **Alternatives**: 連続 GM（Kyle λ）も別アンカーに使えるが、A の主アンカーは離散 GM。Kyle は将来の追加チェック。
 
-## D5. Budish sniping レント（抽出量の解析アンカー）
-- **Decision**: 同一 primitives 上で、連続マッチングの per-period sniping 損 = 「stale quote がジャンプで取り残され picking-off される確率 × 逆選択サイズ」。`anchors.budish_sniping_rent(...)` が閉形式で返す。N 期 batch は N 期分の到着を 1 回の uniform-price clearing に集約し、intra-batch の picking-off 機会を除去 → レントが N とともに減少。
-- **検証**: SC-002（σ/p_jump sweep 全域で sim 抽出量 ≈ 閉形式）、SC-003（batch/continuous 比が N・σ で理論整合）。
-- **Alternatives**: AMM-LVR（Milionis）は別 venue type のアンカー＝spine 外、並行/後回し（spec Assumptions）。
+## D5. anchor battery（A2 の layered validation：spread・impact・sniping・clearing）
+GM だけでは impact 層・clearing 層が未検証。A2 に従い4層を独立に張る。**LVR は含まない**（CLOB に pool 無し＝算出不能。AMM variant 専用）。
 
-## D6. 許容誤差
-- **Decision**: アンカーごとに事前設定。デフォルト = **相対誤差 ≤ 5% または Monte Carlo 標準誤差の 2 倍以内の緩い方**。`SimConfig.tolerance` で上書き可。MC SE は seed 集計から推定。
-- **Rationale**: sim は有限サンプル＝統計誤差を持つ。固定 5% だけだと低分散領域で甘く高分散領域で厳しすぎる。SE ベースを併用。
+### D5a. Budish sniping レント（抽出量）
+- 連続マッチングの sniping 損 = stale quote が jump で取り残され picking-off される確率 × 逆選択サイズ。`anchors.budish_sniping_rent(...)` が連続時間閉形式を返す。N 期 batch は intra-batch の picking-off 機会を除去 → N とともに減少。検証: SC-002/003。
+
+### D5b. Kyle λ（price impact 層）
+- **Decision**: `anchors.kyle_lambda(...)` が price-impact 係数の閉形式を返し、sim の実測 impact（注文サイズ→価格変化の回帰係数）と照合（SC-005）。
+- **Rationale**: impact 層は最もバグの入りやすい層の一つ。GM(スプレッド)・Budish(レント)では触れない。
+- **Alternatives**: GM だけで済ます→A2 違反（却下）。
+
+### D5c. uniform-price clearing（clearing 層）
+- **Decision**: clearing 価格・約定割当の正しさを **engine と独立な単体テスト**で固定（既知の supply/demand に対し手計算 clearing 価格と一致、marginal quote が全約定に効く）。
+- **Rationale**: batch clearing は B の collusion 動学が乗る層。ここが狂うと全 batch 結果が無効。
+
+> **LVR を A から完全除去**：CLOB spine に pool が無く算出不能。LP 抽出は GM/Budish で測る。LVR は後回しの AMM variant feature 専用（spec Out of Scope）。
+
+## D6. 許容誤差 = tight consistency ＋ 収束チェック（「緩い方」は廃止）
+- **Decision**: gate の強度 = SC-001 の許容そのもの。よって「緩い方」を取らない。二段に分離：
+  - (i) **統計 consistency**：seed を増やして縮めた **tight な SE**（例 ±2·σ̂/√M）を許容に使う。精度を買ったらその精度で判定（flat 5% に逃げると 4% のバグが通る）。
+  - (ii) **系統ギャップ（離散化・有限頻度・fee）**：flat tolerance に吸わせず、**dt→0 収束チェック**で扱う。複数解像度 dt で `|sim−anchor|` が期待オーダーで減衰することを示す。単一解像度の「5%以内」はバグと離散化誤差の相殺（or 正しい sim の棄却）を許す。
+- **Rationale**: SC-007（B license）の信頼性は許容の tightness に等しい。pass は mechanical かつ tight に。
+- **判定**: 各アンカーで (a) 関数形再現 (b) dt→0 収束 (c) tight SE 内一致 の **3点 AND**。
 
 ## D7. 決定論
 - **Decision**: 単一 `numpy.random.default_rng(seed)` を engine が保持し、price/agents/arrival の全乱数をそこから引く。`SimConfig.seed`。複数 seed は外側ループ（検証・sweep）で回す。
@@ -43,7 +58,14 @@
 ## D8. 抽出量・実効スプレッドの会計定義
 - **extraction**: arbitrageur の各約定 PnL = `(true price − 約定価格) × 符号付き数量` の累積（MM 犠牲分）。MM 側に同額の逆符号で計上 → ゼロサム整合を assert（会計の sanity check）。
 - **effective spread**: noise trader の約定について `2 × |約定価格 − mid|`（符号付き版も保持）。
-- **mm_net_pnl**: `fees 収入 − extraction`。fee は taker fee/maker rebate を `SimConfig.fee` で表現。
+- **mm_net_pnl**: `fees 収入 − extraction`（会計補助）。
+- **participation margin（US3, D9）**: `f·(noise 約定量) − sniping 損 − c`。
+
+## D9. participation margin（US3 — competitive frame の vacuous を回避）
+- **問題**: GM break-even で価格する competitive MM は構造的に利益ゼロ → 「PnL 符号」での US3 は US2(spread) に潰れるか vacuous。
+- **Decision**: participation margin = `f·(noise 約定量) − sniping 損 − c`（`f`=fee, `c`=機会コスト＝退出閾値）。margin<0 で MM 退出。US3 = 連続 vs batch が**退出判定を反転させるか**。
+- **Rationale**: AMM の「swap fee が LVR を補償→LP 残留か」サステナビリティ問題と同型。spread 水準と独立な本物の問い。
+- **Alternatives**: 元の「MM 純 PnL 符号」（competitive では構造ゼロ＝中身なし、却下）。
 
 ## 残 NEEDS CLARIFICATION
 - なし（全項目 Decision 済）。GM/Budish の正確な定数は実装フェーズで導出し unit test で pin する設計とした（plan に数値を埋めない）。

@@ -4,14 +4,15 @@ spec の Key Entities を具体 dataclass に落とす。全て `src/microstruct
 
 ## SimConfig (`config.py`)
 不変の run パラメータ。frozen dataclass。
-- `n_periods: int` — sim 長
+- `n_periods: int` — sim ステップ数
 - `seed: int` — 単一 RNG seed（D7）
-- price: `mu: float`(drift), `sigma: float`(vol, 主要 sweep), `p_jump: float`, `jump_size: float`(J), `use_diffusion: bool`(GBM 拡張 flag, baseline=False)
+- `dt: float` — 時間解像度。jump 確率 `lambda_jump*dt`、diffusion `sigma*sqrt(dt)`。dt→0 で連続時間極限（D6 収束）
+- price: `mu: float`(drift), `sigma: float`(vol, 主要 sweep), `lambda_jump: float`(jump 強度/単位時間), `jump_size: float`(J)
 - mechanism: `mechanism: Literal["continuous","batch"]`, `batch_interval: int`(N; continuous では無視)
-- flow: `alpha: float`（taker が arbitrageur である確率＝informed fraction）, `noise_rate: float`
-- fee: `fee: float`（taker fee 正 / maker rebate 負）
-- `tolerance_rel: float = 0.05`, `tolerance_se_mult: float = 2.0`（D6）
-- 不変条件: `0<=alpha<=1`, `0<=p_jump<=1`, `batch_interval>=1`, `sigma>=0`。
+- flow: `alpha: float`（taker が arbitrageur=informed である確率）, `noise_rate: float`
+- economics: `fee: float`（taker fee 正 / maker rebate 負）, `opp_cost: float`(c, 機会コスト＝退出閾値, US3)
+- tolerance: `se_mult: float = 2.0`（tight な統計 consistency, D6。**flat rel tolerance は持たない**＝「緩い方」廃止）
+- 不変条件: `0<=alpha<=1`, `0<=lambda_jump*dt<=1`, `batch_interval>=1`, `sigma>=0`, `dt>0`。
 
 ## TruePrice (`price.py`)
 - `value(t) -> float`：外生 GBM(+jump)。**取引に依存しない**（FR-001）。RNG は engine 注入。
@@ -44,14 +45,17 @@ protocol。`step(book, orders, t) -> list[Fill]`。
 run 全体を集計。
 - `extraction: float`（arbitrageur 累積 PnL = MM 犠牲、D8。ゼロサム assert）
 - `effective_spread: float`（noise traders、D8）
-- `mm_net_pnl: float`（fees − extraction）
-- `competitive_spread: float`（sim から測った実効 half-spread。GM アンカーと比較する量）
-- `realized_spread`, per-seed の分散（SE 推定用）
+- `competitive_spread: float`（sim 実効 half-spread。GM アンカーと比較）
+- `price_impact: float`（注文サイズ→価格変化の回帰係数。Kyle λ と比較, D5b）
+- `participation_margin: float` ＋ `mm_exits: bool`（`f·noise量 − sniping − c`, US3/D9）
+- `mm_net_pnl: float`（会計補助）, per-seed 分散（tight SE 推定用）
 
-## Anchors (`anchors.py`) — sim と独立実装
-- `gm_break_even(p_jump, jump_size, alpha, ...) -> float`（competitive half-spread の閉形式, D4）
-- `budish_sniping_rent(sigma, p_jump, jump_size, batch_interval, ...) -> float`（抽出量の閉形式, D5）
-- **engine/metrics を import しない**（共有バグ排除）。手計算1点を test で pin。
+## Anchors (`anchors.py`) — sim と独立実装（連続時間極限）
+- `gm_break_even(lambda_jump, jump_size, alpha, ...) -> float`（competitive half-spread, D4）
+- `kyle_lambda(sigma, alpha, ...) -> float`（price impact 係数, D5b）
+- `budish_sniping_rent(sigma, lambda_jump, jump_size, batch_interval=1, ...) -> float`（抽出量, D5a）
+- uniform-price clearing は anchor 関数でなく**独立単体テスト**（既知 supply/demand→手計算 clearing 価格, D5c）。
+- **engine/metrics/agents を import しない**（共有バグ排除）。手計算1点を test で pin。**LVR は無い**（CLOB に pool 不在）。
 
 ## RunResult (`engine.py`)
 - `RunResult(config: SimConfig, metrics: Metrics, n_trades: int, runtime_sec: float)`。

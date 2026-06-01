@@ -11,6 +11,9 @@
 - **competitive benchmark (競争 spread)**: markup の分母。同一 n 体の myopic / one-shot stage-game Nash＝arbitrageur 逆選択への **Glosten-Milgrom break-even**。**独占（単体 MM）spread とは別物**（→「混同しやすい語」）。
 - **zero-intelligence (ZI) floor**: メカニズム＋order-flow 制約だけで出る spread（知能ゼロのベースライン、固有名は出さない）。「どこからが戦略/知能の寄与か」を分離。floor 体系: ZI floor ≤ myopic-Nash floor ≤ 実現 spread。
 - **demand-reduction（uniform-price）**: uniform-price clearing で marginal quote が約定全量の受取価格に効くため、undercut が自分の受取価格を不利に動かす誘因。Bertrand の「undercut 全取り」が成立しない理由（C1）。
+- **Kyle λ**: 注文サイズ→価格変化の price impact 係数。実験A の anchor battery の impact 層（GM=スプレッド層、Budish=sniping 層、clearing=batch 層と並ぶ）。
+- **participation margin**: `f·(noise 約定量) − sniping 損 − 機会コスト c`。competitive MM は利益ゼロなので、流動性存続は PnL 符号でなくこの margin の符号（退出判定）で測る。連続 vs batch が退出を反転させるか＝US3。AMM の「fee が LVR を補償→LP 残留か」と同型。
+- **anchor battery（実験A）**: GM break-even ＋ Kyle λ ＋ Budish rent ＋ uniform-price clearing 単体テストの4層。sim と独立実装し、形再現＋dt→0 収束＋tight SE で判定。**LVR は含まない**。
 - **collusion index**: markup ＋ 逸脱に対する懲罰（reward-punishment 構造）の検出。
 - **deviation + punishment test / impulse-response**: 強制 1 期逸脱後に協調が懲罰経由で再確立するかを見る検査。「本物の collusion」と「探索不足の高止まり」を区別する第一級の妥当性検査。
 - **連続マッチング (continuous matching)**: 価格優先・時間優先の continuous LOB matching、または continuous CFMM swap。ベースライン機構。
@@ -27,4 +30,5 @@
 - **抽出 A（速度ベース）と 抽出 B（学習ベース）は別物**。連続した一現象ではない。victim（A=受動的 LP/MM、B=taker）も機構（A=情報・速度非対称、B=反復ゲーム学習）も別。同じ batch がそれぞれに逆向きに効きうる、が研究の核。
 - **competitive benchmark ≠ 独占(単体 MM) spread**。単体 MM の best-response は独占 spread。これを markup 分母にすると collusion を過小評価する。正しくは同一 n 体の myopic/one-shot stage-game Nash（→ review A1）。
 - **uniform-price batch の逸脱誘因 ≠ Bertrand**。「微小 undercut で batch 全取り」は誤り（demand-reduction で自分の受取価格が不利化, C1）。帰結：破壊方向が弱い ⇒ 理論 prior は「batch は collusion 促進」に傾く ⇒ confirmation risk（sim が prior を追認する危険、→ review ③）。
-- **実験 A は finding ではなく simulator のユニットテスト**。A の LVR 一致が検証するのは pricing/会計レイヤであって matching engine や学習ループではない（→ review A2）。
+- **実験 A は finding ではなく simulator のユニットテスト**。検証すべきは spread だけでなく impact 層(Kyle)・clearing 層も（A2 layered validation）。
+- **LVR は CLOB spine では使えない**。LVR は pool 量を要する AMM 概念。実験A の市場オブジェクトは CLOB/quoting-MM＝pool 不在なので算出不能。CLOB での LP 抽出は sniping/逆選択（GM/Budish）で測る。LVR が戻るのは後回しの AMM variant feature のみ。

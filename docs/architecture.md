@@ -45,6 +45,7 @@ classDiagram
     n_trades : int
     noise_pnl : float
     participation_margin : float
+    price_impact : float
   }
   class Order {
     agent_id : str

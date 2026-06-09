@@ -14,7 +14,8 @@ class Metrics:
     participation_margin: float  # mm_net_pnl - opp_cost*T（US3, D9）
     mm_exits: bool             # participation_margin < 0
     effective_spread: float    # noise の平均実効スプレッド（full = 2h）
-    informed_impact: float     # informed 取引あたり平均 |mid 変化|（Kyle 層, ≈ J）
+    informed_impact: float     # 診断用: informed fill あたり平均 |Δp|（σ=0 では構成上 ≈J。検証には使わない）
+    price_impact: float        # identity-blind flow 回帰 λ̂ = Σx·Δp/Σx²（impact 層, anchor=kyle_lambda, D5b v2）
     n_noise: int
     n_arb: int
 

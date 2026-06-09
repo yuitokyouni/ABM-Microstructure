@@ -46,13 +46,13 @@ run 全体を集計。
 - `extraction: float`（arbitrageur 累積 PnL = MM 犠牲、D8。ゼロサム assert）
 - `effective_spread: float`（noise traders、D8）
 - `competitive_spread: float`（sim 実効 half-spread。GM アンカーと比較）
-- `price_impact: float`（注文サイズ→価格変化の回帰係数。Kyle λ と比較, D5b）
+- `price_impact: float`（identity-blind flow 回帰 λ̂ = Σx·Δp/Σx²。kyle_lambda と比較, D5b v2。`informed_impact` は診断用で検証に使わない）
 - `participation_margin: float` ＋ `mm_exits: bool`（`f·noise量 − sniping − c`, US3/D9）
 - `mm_net_pnl: float`（会計補助）, per-seed 分散（tight SE 推定用）
 
 ## Anchors (`anchors.py`) — sim と独立実装（連続時間極限）
 - `gm_break_even(lambda_jump, jump_size, alpha, ...) -> float`（competitive half-spread, D4）
-- `kyle_lambda(sigma, alpha, ...) -> float`（price impact 係数, D5b）
+- `kyle_lambda(lambda_jump, jump_size, alpha, noise_rate, dt, half_spread, batch_interval=1) -> float`（識別盲 flow 回帰の impact 係数。N=1 で gm_break_even と厳密一致＝GM identity, D5b v2）
 - `budish_sniping_rent(sigma, lambda_jump, jump_size, batch_interval=1, ...) -> float`（抽出量, D5a）
 - uniform-price clearing は anchor 関数でなく**独立単体テスト**（既知 supply/demand→手計算 clearing 価格, D5c）。
 - **engine/metrics/agents を import しない**（共有バグ排除）。手計算1点を test で pin。**LVR は無い**（CLOB に pool 不在）。

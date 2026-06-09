@@ -27,31 +27,33 @@ def gm_break_even(lambda_jump: float, jump_size: float, alpha: float,
     return alpha * lambda_jump * jump_size / denom
 
 
+def _iter_net_displacement(n_steps: int, q: float, jump_size: float):
+    """バッチ n_steps 内の net 変位 |S| の厳密分布を (確率, |S|) で列挙。
+
+    各ステップ確率 q で ±J ジャンプ：ジャンプ数 K~Binom(n,q)、上方 u~Binom(K,1/2)、
+    S=(2u-K)*J。有限和の厳密列挙。Budish rent（sniping 層）と kyle_lambda（impact 層）が
+    共有する netting 機構。
+    """
+    for K in range(n_steps + 1):
+        pK = math.comb(n_steps, K) * (q ** K) * ((1.0 - q) ** (n_steps - K))
+        if pK == 0.0:
+            continue
+        for u in range(K + 1):
+            yield pK * math.comb(K, u) * (0.5 ** K), abs(2 * u - K) * jump_size
+
+
 def _expected_net_snipe(lambda_jump: float, jump_size: float, dt: float,
                         half_spread: float, batch_interval: int) -> float:
-    """バッチ1回あたりの期待 sniping 額 E[(|S_N|*? - h)+]（committed-quote モデル）。
+    """バッチ1回あたりの期待 sniping 額 E[(|S_N| - h)+]（committed-quote モデル）。
 
-    バッチ N ステップで各ステップ確率 q=lambda*dt で ±J ジャンプ。net 変位の
-    ジャンプ数 K~Binom(N,q)、上方ジャンプ u~Binom(K,1/2)、net=(2u-K)*J。
     arbitrageur は clear で stale quote の net 変位を 1 回 picking-off:
-      E[(|net| - h)+] = sum_K P(K) sum_u C(K,u) 0.5^K max(|2u-K|*J - h, 0)
+      E[(|S_N| - h)+] = Σ P(|S_N|=s) · max(s - h, 0)
     厳密（有限和）。N=1 で q*(J-h)+ に帰着＝連続の per-step snipe。
     """
     q = lambda_jump * dt
-    N, J, h = batch_interval, jump_size, half_spread
-    total = 0.0
-    for K in range(N + 1):
-        pK = math.comb(N, K) * (q ** K) * ((1.0 - q) ** (N - K))
-        if pK == 0.0:
-            continue
-        inner = 0.0
-        for u in range(K + 1):
-            net = abs(2 * u - K) * J
-            payoff = net - h
-            if payoff > 0.0:
-                inner += math.comb(K, u) * (0.5 ** K) * payoff
-        total += pK * inner
-    return total
+    return sum(p * (s - half_spread)
+               for p, s in _iter_net_displacement(batch_interval, q, jump_size)
+               if s > half_spread)
 
 
 def budish_sniping_rent(lambda_jump: float, jump_size: float, alpha: float,
@@ -69,12 +71,28 @@ def budish_sniping_rent(lambda_jump: float, jump_size: float, alpha: float,
     return alpha * e / (batch_interval * dt)
 
 
-def kyle_lambda(jump_size: float, alpha: float | None = None) -> float:
-    """price impact 係数（model-consistent）。
+def kyle_lambda(lambda_jump: float, jump_size: float, alpha: float,
+                noise_rate: float, dt: float, half_spread: float,
+                batch_interval: int = 1) -> float:
+    """identity-blind flow 回帰の price-impact 係数 λ（impact 層, SC-005 / research D5b v2）。
 
-    informed(arbitrageur)の取引後、MM は真値を学習し mid が J だけ動く。
-    **informed 取引1回あたりの price impact = J**（jump model では alpha は頻度に効くが
-    1取引あたり impact には効かない）。検証はこのスケーリング（∝ J、informed で ~J）を
-    sim の `informed_impact` と照合（SC-005, impact 層）。`alpha` は API 互換のため任意。
+    sim 側 `metrics.price_impact`（取引主体を知らずに測る λ̂ = Σx·Δp/Σx²）の独立アンカー。
+    flow 組成の混合期待値（pure-jump・committed-quote）:
+      λ(N) = α·E[|S_N|·1{|S_N|>h}] / (α·P(|S_N|>h) + N·noise_rate·dt)
+    分子＝informed flow が運ぶ価格情報（E[x·Δp] の informed 項。noise は方向独立で消える）、
+    分母＝E[x²]＝informed 参加率 + noise 希釈（N ステップで線形蓄積）。
+    N=1（h<J）で αλJ/(αλ+noise_rate) ＝ gm_break_even に厳密一致（GM の定理:
+    competitive spread = adverse-selection impact。spread 層と impact 層の三角検証）。
+    旧版 `=J` は sim の Bayesian 更新と circular で検出力ゼロだった（finding 0001 ③）。
     """
-    return jump_size
+    q = lambda_jump * dt
+    info = 0.0
+    p_over = 0.0
+    for p, s in _iter_net_displacement(batch_interval, q, jump_size):
+        if s > half_spread:
+            info += p * s
+            p_over += p
+    denom = alpha * p_over + batch_interval * noise_rate * dt
+    if denom <= 0.0:
+        return 0.0
+    return alpha * info / denom

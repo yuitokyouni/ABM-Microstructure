@@ -11,7 +11,7 @@
 - **competitive benchmark (競争 spread)**: markup の分母。同一 n 体の myopic / one-shot stage-game Nash＝arbitrageur 逆選択への **Glosten-Milgrom break-even**。**独占（単体 MM）spread とは別物**（→「混同しやすい語」）。
 - **zero-intelligence (ZI) floor**: メカニズム＋order-flow 制約だけで出る spread（知能ゼロのベースライン、固有名は出さない）。「どこからが戦略/知能の寄与か」を分離。floor 体系: ZI floor ≤ myopic-Nash floor ≤ 実現 spread。
 - **demand-reduction（uniform-price）**: uniform-price clearing で marginal quote が約定全量の受取価格に効くため、undercut が自分の受取価格を不利に動かす誘因。Bertrand の「undercut 全取り」が成立しない理由（C1）。
-- **Kyle λ**: 注文サイズ→価格変化の price impact 係数。実験A の anchor battery の impact 層（GM=スプレッド層、Budish=sniping 層、clearing=batch 層と並ぶ）。
+- **Kyle λ**: 注文サイズ→価格変化の price impact 係数。実験A の anchor battery の impact 層（GM=スプレッド層、Budish=sniping 層、clearing=batch 層と並ぶ）。実装は **identity-blind flow 回帰**：sim は主体を知らずに λ̂=Σx·Δp/Σx² を測り、anchor は flow 組成から独立導出。N=1 で **GM identity（λ = competitive half-spread h\*）**＝spread 層との三角検証（D5b v2、旧 `=J` の circular 版は finding 0001 ③ で閉鎖）。
 - **participation margin**: `f·(noise 約定量) − sniping 損 − 機会コスト c`。competitive MM は利益ゼロなので、流動性存続は PnL 符号でなくこの margin の符号（退出判定）で測る。連続 vs batch が退出を反転させるか＝US3。AMM の「fee が LVR を補償→LP 残留か」と同型。
 - **anchor battery（実験A）**: GM break-even ＋ Kyle λ ＋ Budish rent ＋ uniform-price clearing 単体テストの4層。sim と独立実装し、形再現＋dt→0 収束＋tight SE で判定。**LVR は含まない**。
 - **batch×抽出クロスオーバー（finding 0001）**: batch が速度ベース抽出を減らすか増やすかは spread の広さ h に依存。h≪J で減・h~J で増（net 変位の凸性）。検証済（独立アンカー＋sim）。

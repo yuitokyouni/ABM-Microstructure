@@ -64,7 +64,14 @@ def _run_continuous(cfg: SimConfig, rng: np.random.Generator) -> Metrics:
     noise_pnl = float(np.sum(noise_pnl_each[noise_present]))
     n_noise = int(np.count_nonzero(noise_present))
 
-    return _assemble(cfg, extraction, noise_pnl, n_noise, n_arb, informed_impact)
+    # impact 層（D5b v2）: 主体を知らない符号付き flow x と価格変動 disp の原点回帰 λ̂。
+    flow = (np.where(arb_trade, np.sign(disp), 0.0)
+            + np.where(noise_present, np.where(noise_buy, 1.0, -1.0), 0.0))
+    flow_sq = float(np.dot(flow, flow))
+    price_impact = float(np.dot(flow, disp) / flow_sq) if flow_sq > 0 else 0.0
+
+    return _assemble(cfg, extraction, noise_pnl, n_noise, n_arb,
+                     informed_impact, price_impact)
 
 
 def _run_batch(cfg: SimConfig, rng: np.random.Generator) -> Metrics:
@@ -83,6 +90,8 @@ def _run_batch(cfg: SimConfig, rng: np.random.Generator) -> Metrics:
     n_noise = 0
     n_arb = 0
     informed_disp_sum = 0.0
+    flow_dp = 0.0
+    flow_sq = 0.0
     m0 = cfg.initial_price
     for b in range(n_batches):
         start = b * N
@@ -90,26 +99,33 @@ def _run_batch(cfg: SimConfig, rng: np.random.Generator) -> Metrics:
         v_final = v[end - 1]                 # clear 時の真値
         disp = v_final - m0                  # バッチ全体の net 変位（stale quote 基準）
         # arbitrageur: net 変位が利益的なら clear で 1 回だけ picking-off
+        arb_sign = 0.0
         if arb_present[b] and abs(disp) > h:
             extraction += abs(disp) - h
             n_arb += 1
             informed_disp_sum += abs(disp)
+            arb_sign = 1.0 if disp > 0 else -1.0
         # noise: バッチ内到着が clear 価格(stale quote)で settle、true=v_final
         idx = slice(start, end)
         nb = noise_present[idx]
-        if nb.any():
-            buys = noise_buy[idx] & nb
-            sells = (~noise_buy[idx]) & nb
-            noise_pnl += float(np.count_nonzero(buys) * (h - disp)
-                               + np.count_nonzero(sells) * (h + disp))
-            n_noise += int(np.count_nonzero(nb))
+        buys = int(np.count_nonzero(noise_buy[idx] & nb))
+        sells = int(np.count_nonzero((~noise_buy[idx]) & nb))
+        noise_pnl += buys * (h - disp) + sells * (h + disp)
+        n_noise += buys + sells
+        # impact 層（D5b v2）: バッチ単位の識別盲 flow x_b と net 変位の回帰和
+        x = arb_sign + (buys - sells)
+        flow_dp += x * disp
+        flow_sq += x * x
         m0 = v_final                          # clear で学習
     informed_impact = informed_disp_sum / n_arb if n_arb else 0.0
-    return _assemble(cfg, extraction, noise_pnl, n_noise, n_arb, informed_impact)
+    price_impact = flow_dp / flow_sq if flow_sq > 0 else 0.0
+    return _assemble(cfg, extraction, noise_pnl, n_noise, n_arb,
+                     informed_impact, price_impact)
 
 
 def _assemble(cfg: SimConfig, extraction: float, noise_pnl: float,
-              n_noise: int, n_arb: int, informed_impact: float) -> Metrics:
+              n_noise: int, n_arb: int, informed_impact: float,
+              price_impact: float) -> Metrics:
     mm_trading_pnl = noise_pnl - extraction
     fees = cfg.fee * n_noise          # retail(noise) flow からの fee 収入（swap fee 同型）
     mm_net_pnl = mm_trading_pnl + fees  # 会計補助（spread 収入込み）
@@ -126,6 +142,7 @@ def _assemble(cfg: SimConfig, extraction: float, noise_pnl: float,
         mm_exits=participation_margin < 0,
         effective_spread=2.0 * cfg.half_spread,
         informed_impact=informed_impact,
+        price_impact=price_impact,
         n_noise=n_noise,
         n_arb=n_arb,
     )

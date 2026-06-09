@@ -31,7 +31,9 @@ class MarketMechanism(Protocol):
 ## 5. anchors API（解析的真値・sim と独立・連続時間極限）
 ```
 gm_break_even(lambda_jump: float, jump_size: float, alpha: float) -> float    # competitive half-spread
-kyle_lambda(sigma: float, alpha: float) -> float                              # price impact 係数
+kyle_lambda(lambda_jump: float, jump_size: float, alpha: float,
+            noise_rate: float, dt: float, half_spread: float,
+            batch_interval: int = 1) -> float    # 識別盲 flow 回帰の impact 係数（D5b v2; N=1 = gm_break_even）
 budish_sniping_rent(sigma: float, lambda_jump: float, jump_size: float,
                     batch_interval: int = 1) -> float                         # per-run 期待抽出量
 ```

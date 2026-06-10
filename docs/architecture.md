@@ -13,7 +13,11 @@ classDiagram
   }
   class book {
   }
+  class calibrations {
+  }
   class config {
+  }
+  class designmap {
   }
   class engine {
   }
@@ -28,10 +32,18 @@ classDiagram
   class verdict {
   }
   microstructure --> config
+  microstructure --> designmap
   microstructure --> engine
+  microstructure --> learnconfig
+  microstructure --> qlearn
+  microstructure --> verdict
   agents --> book
   benchmarks --> anchors
   benchmarks --> learnconfig
+  calibrations --> learnconfig
+  designmap --> learnconfig
+  designmap --> qlearn
+  designmap --> verdict
   engine --> config
   engine --> metrics
   env --> learnconfig
@@ -46,6 +58,33 @@ classDiagram
 ## Classes
 ```mermaid
 classDiagram
+  class BudgetExceeded {
+  }
+  class BudgetLedger {
+    DEFAULT_CAPS : dict
+    caps : dict
+    data : dict
+    path : Path
+    total_spent : int
+    charge(tier: str, periods: int) None
+    refund(tier: str, periods: int) None
+  }
+  class Calibration {
+    alpha
+    batch_grid : tuple[int, ...]
+    batch_grid_source : str
+    description : str
+    dt : float
+    fee
+    half_spread_ref
+    jump_size
+    lambda_jump
+    name : str
+    noise_rate
+    to_config() LearnConfig
+  }
+  class CalibrationIncomplete {
+  }
   class CellMeasurement {
     converged : bool
     exited : bool
@@ -64,6 +103,28 @@ classDiagram
     markup_se : float
     markup_significant : bool
     n_seeds : int
+  }
+  class DesignMapPoint {
+    algo : str
+    batch_interval : int
+    cell : str
+    certified : bool
+    converged_frac : float
+    exited_frac : float
+    extraction_mean : float
+    extraction_se : float
+    fee : float
+    jump_size : float
+    lambda_jump : float
+    markup_mean : float
+    markup_se : float
+    mechanism : str
+    memory : int
+    n_mm : int
+    n_seeds : int
+    periods_total : int
+    runtime_sec : float
+    staleness : str
   }
   class FixedPolicy {
     table
@@ -187,6 +248,10 @@ classDiagram
     seed : int
     sigma : float
   }
+  class SourcedValue {
+    source : str
+    value : float | None
+  }
   class TrainResult {
     converged : bool
     periods_run : int
@@ -215,6 +280,12 @@ classDiagram
   QLearner --|> _Tabular
   SARSA --|> _Tabular
   Order --> Side : side
+  Calibration --> SourcedValue : lambda_jump
+  Calibration --> SourcedValue : jump_size
+  Calibration --> SourcedValue : half_spread_ref
+  Calibration --> SourcedValue : alpha
+  Calibration --> SourcedValue : fee
+  Calibration --> SourcedValue : noise_rate
   RunResult --> SimConfig : config
   RunResult --> Metrics : metrics
   LearnConfig --o MarketEnv : cfg

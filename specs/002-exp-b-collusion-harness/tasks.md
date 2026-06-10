@@ -55,9 +55,9 @@
 
 **Independent Test**: 代表セル 1 つで 4 条件比較が e2e 出力される（spec US2 Acceptance 1–4）。
 
-- [ ] T013 [US2] DesignMapPoint と単一条件集計を `src/microstructure/designmap.py` に実装（data-model 準拠フィールド: condition/cell_params/(extraction, markup)±SE/certified/converged_frac/exited（最大 spread 張り付き判定）/n_seeds/periods_total/runtime_sec）
-- [ ] T014 [US2] 条件横断比較を `src/microstructure/designmap.py` に実装（同一 seed 群・同一 grid で条件集合を回す `collect()`、markup 差の SE（seed ペアリング）、分類 {促進/抑制/無影響}（差±2SE の符号）、抽出の同時記録（finding 0001 emergent 版の機構 evidence）、revisable ablation の差分=predation 寄与の算出）
-- [ ] T015 [US2] 機構比較の検証を `tests/test_design_comparison.py` に実装（FixedPolicy 固定 **高 h** で batch 抽出 > 連続・**低 h** で batch < 連続（finding 0001 クロスオーバーの env 再現＝学習なしの決定論 sanity）、revisable では batch でも抽出≡0、分類関数の境界挙動、4 条件 e2e スモーク（縮小 t_max））
+- [X] T013 [US2] DesignMapPoint と単一条件集計を `src/microstructure/designmap.py` に実装（data-model 準拠フィールド: condition/cell_params/(extraction, markup)±SE/certified/converged_frac/exited（最大 spread 張り付き判定）/n_seeds/periods_total/runtime_sec）
+- [X] T014 [US2] 条件横断比較を `src/microstructure/designmap.py` に実装（同一 seed 群・同一 grid で条件集合を回す `collect()`、markup 差の SE（seed ペアリング）、分類 {促進/抑制/無影響}（差±2SE の符号）、抽出の同時記録（finding 0001 emergent 版の機構 evidence）、revisable ablation の差分=predation 寄与の算出）
+- [X] T015 [US2] 機構比較の検証を `tests/test_design_comparison.py` に実装（FixedPolicy 固定 **高 h** で batch 抽出 > 連続・**低 h** で batch < 連続（finding 0001 クロスオーバーの env 再現＝学習なしの決定論 sanity）、revisable では batch でも抽出≡0、分類関数の境界挙動、4 条件 e2e スモーク（縮小 t_max））
 
 **Checkpoint**: US1+US2 が独立に動く
 
@@ -69,10 +69,10 @@
 
 **Independent Test**: coarse tier 1 周（縮小 t_max のドライランで可）が予算 ledger 付きで CSV を出し、超過 run が拒否される（spec US3 Acceptance 1–4）。
 
-- [ ] T016 [US3] 予算 ledger を `src/microstructure/designmap.py` に実装（学習期の累計カウント、tier 上限（coarse/dense/robustness 各 1×10⁹、総 3×10⁹）、超過 run の起動拒否＋拒否 log、JSON 永続。D-B9）
-- [ ] T017 [US3] grid runner を `scripts/run_design_map.py` に実装（`--tier coarse|dense|robustness`、coarse=D-B9 の 96 条件セル×5 seed 構成、`--around <cell-id>`（局所密）、`--headline <ids>`（SARSA・ハイパー振り・tie=rotate・追加 seed≥20）、`--budget-ledger`、CSV/JSON 出力、per-run timing log）
-- [ ] T018 [US3] memory 閾値 sweep を `src/microstructure/verdict.py` に実装（`memory_threshold(cells) `: **certified セルのみ受理・非認定セルは ValueError**（gate 違反ゼロの構造化）、認定維持の最小 memory を返す）
-- [ ] T019 [US3] designmap/予算/gate の検証を `tests/test_designmap.py` に実装（ledger 超過で起動拒否される・拒否が記録される、非認定セルの閾値要求が raise、CSV schema（DesignMapPoint 全フィールド）、coarse tier の総予定期数 ≤ tier 上限の静的検査）
+- [X] T016 [US3] 予算 ledger を `src/microstructure/designmap.py` に実装（学習期の累計カウント、tier 上限（coarse/dense/robustness 各 1×10⁹、総 3×10⁹）、超過 run の起動拒否＋拒否 log、JSON 永続。D-B9）
+- [X] T017 [US3] grid runner を `scripts/run_design_map.py` に実装（`--tier coarse|dense|robustness`、coarse=D-B9 の 72 条件セル×5 seed 構成（(mem2,n3) は tabular 不能で除外、実装注記）、`--around <cell-id>`（局所密）、`--headline <ids>`（SARSA・ハイパー振り・tie=rotate・追加 seed≥20）、`--budget-ledger`、CSV/JSON 出力、per-run timing log）
+- [X] T018 [US3] memory 閾値 sweep を `src/microstructure/verdict.py` に実装（`memory_threshold(cells) `: **certified セルのみ受理・非認定セルは ValueError**（gate 違反ゼロの構造化）、認定維持の最小 memory を返す）
+- [X] T019 [US3] designmap/予算/gate の検証を `tests/test_designmap.py` に実装（ledger 超過で起動拒否される・拒否が記録される、非認定セルの閾値要求が raise、CSV schema（DesignMapPoint 全フィールド）、coarse tier の総予定期数 ≤ tier 上限の静的検査）
 
 **Checkpoint**: 地図 pipeline 完成（実スケールの coarse 実行は研究実行フェーズ）
 
@@ -84,16 +84,16 @@
 
 **Independent Test**: `--cell bcs-es-spy` で較正セルが coarse pipeline を通る。
 
-- [ ] T020 [US4] 較正 registry を `src/microstructure/calibrations.py` に実装（venue 名→LearnConfig の mapping（λ←arb 機会頻度、J←機会あたり利得規模、fee←公表手数料、N←FBA 提案レンジ/TWSE 5s、noise_rate←出来高近似）、各フィールドに出典 metadata 必須、数値未記入の calibration を使うと明示エラー。`run_design_map.py --cell <name>` 接続）
-- [ ] T021 [US4] BCS ES–SPY の数値記入と較正セル実行を行い、出典・換算手順・地図上の位置を `specs/002-exp-b-collusion-harness/calibration.md` に記録（原典 Budish–Cramton–Shim 2015 の推定値を確認して記入。C6 文献調査と並走、TWSE 値は代替として併記）
+- [X] T020 [US4] 較正 registry を `src/microstructure/calibrations.py` に実装（venue 名→LearnConfig の mapping（λ←arb 機会頻度、J←機会あたり利得規模、fee←公表手数料、N←FBA 提案レンジ/TWSE 5s、noise_rate←出来高近似）、各フィールドに出典 metadata 必須、数値未記入の calibration を使うと明示エラー。`run_design_map.py --cell <name>` 接続）
+- [X] T021 [US4] BCS ES–SPY の数値記入と較正セル実行を行い、出典・換算手順・地図上の位置を `specs/002-exp-b-collusion-harness/calibration.md` に記録（原典 Budish–Cramton–Shim 2015 の推定値を確認して記入。C6 文献調査と並走、TWSE 値は代替として併記）
 
 ---
 
 ## Phase 7: Polish & Cross-Cutting
 
-- [ ] T022 [P] 公開 API export を `src/microstructure/__init__.py` に追加（LearnConfig/train/measure/impulse_response/certify/collect 等）し、`ontology.md` に B 実装語彙の最小追記（認定 certified・予算 ledger）
-- [ ] T023 全 suite（001 既存＋新規）緑を確認し、実測 timing を 5μs/期 見積りと照合——±3× 超過なら research.md D-B9 の予算根拠を追記更新（黙って変えない）
-- [ ] T024 quickstart.md のコマンド/コードを書かれたとおり実行して検証し、齟齬があれば quickstart 側を修正
+- [X] T022 [P] 公開 API export を `src/microstructure/__init__.py` に追加（LearnConfig/train/measure/impulse_response/certify/collect 等）し、`ontology.md` に B 実装語彙の最小追記（認定 certified・予算 ledger）
+- [X] T023 全 suite（001 既存＋新規）緑を確認し、実測 timing を 5μs/期 見積りと照合——±3× 超過なら research.md D-B9 の予算根拠を追記更新（黙って変えない）
+- [X] T024 quickstart.md のコマンド/コードを書かれたとおり実行して検証し、齟齬があれば quickstart 側を修正
 
 ---
 

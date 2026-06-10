@@ -158,6 +158,24 @@ def impulse_response(cfg: LearnConfig, result: TrainResult) -> IRResult:
     )
 
 
+def memory_threshold(verdicts: dict[int, CollusionVerdict]) -> int:
+    """C2: collusion 維持に必要な最小 memory（認定通過点のみから決定、A3×C2 gate）。
+
+    入力 = {memory 水準: その水準の CollusionVerdict}。認定された水準がひとつも
+    無ければ閾値は**定義されない**——その場合に数値を返すのは「artifact の閾値を
+    測る」gate 違反なので ValueError で拒否する（原則IV）。非認定の低 memory 水準は
+    「閾値未満」の証拠であって違反ではない。
+    """
+    if not verdicts:
+        raise ValueError("memory_threshold: empty input")
+    certified = [m for m, v in verdicts.items() if v.certified]
+    if not certified:
+        raise ValueError(
+            "memory_threshold: no certified memory level — 閾値は未定義（gate 違反を拒否。"
+            "認定された点が出てから測る）")
+    return min(certified)
+
+
 def certify(cells: list[CellMeasurement], irs: list[IRResult],
             markup_floor: float | None = None) -> CollusionVerdict:
     """認定 = markup 有意（mean − 2SE > floor）∧ IR pass 率 ≥ 0.8 ∧ 全 seed 収束（D-B7）。"""

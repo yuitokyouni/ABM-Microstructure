@@ -9,7 +9,7 @@
 - **学習ベース抽出 / tacit collusion**: 学習 MM 同士が明示的合意なしに supra-competitive な spread を学習・維持する協調。実験 B の失敗モード。
 - **supra-competitive markup**: 実現 spread の競争ベンチマークに対する超過。markup = (実現 spread − 競争 spread) / 競争 spread。競争ベンチマークは同一 n の myopic-Nash（独占ではない, A1）。
 - **competitive benchmark (競争 spread)**: markup の分母。同一 n 体の myopic / one-shot stage-game Nash＝arbitrageur 逆選択への **Glosten-Milgrom break-even**。**独占（単体 MM）spread とは別物**（→「混同しやすい語」）。
-- **zero-intelligence (ZI) floor**: メカニズム＋order-flow 制約だけで出る spread（知能ゼロのベースライン、固有名は出さない）。「どこからが戦略/知能の寄与か」を分離。**順序訂正（002 D-B5, 2026-06-10）**: 勝者総取り spread 競争では理論順序は **myopic-Nash ≤ 学習実現（収束時）**で、ZI（=E[min h]、grid 中央寄り）は**中間参照点**——旧記述「ZI ≤ myopic-Nash ≤ 実現」は誤り。学習実現が ZI の下（競争学習）か上（協調学習）かが診断情報。
+- **zero-intelligence (ZI) floor**: メカニズム＋order-flow 制約だけで出る spread（知能ゼロのベースライン、固有名は出さない）。「どこからが戦略/知能の寄与か」を分離。**順序訂正（002 D-B5, 2026-06-10）**: 勝者総取り spread 競争では理論順序は **myopic-Nash ≤ 学習実現（収束時）**で、ZI（=E[min h]、grid 中央寄り）は**中間参照点**——旧記述「ZI ≤ myopic-Nash ≤ 実現」は誤り。学習実現が ZI の下（競争学習）か上（協調学習）かが診断情報。**操作的定義（混同注意）**: 本実装の ZI は各期 action grid 上の**一様 i.i.d.（完全ランダム・flow 較正なし）**＝戦略的内容ゼロの内部参照点。実データに flow 統計を較正するタイプの ZI（外部妥当性・stylized facts 再現の道具）とは別物。水準は grid 支持域に依存する（ceiling と同種の限界）。
 - **demand-reduction（uniform-price）**: uniform-price clearing で marginal quote が約定全量の受取価格に効くため、undercut が自分の受取価格を不利に動かす誘因。Bertrand の「undercut 全取り」が成立しない理由（C1）。
 - **Kyle λ**: 注文サイズ→価格変化の price impact 係数。実験A の anchor battery の impact 層（GM=スプレッド層、Budish=sniping 層、clearing=batch 層と並ぶ）。実装は **identity-blind flow 回帰**：sim は主体を知らずに λ̂=Σx·Δp/Σx² を測り、anchor は flow 組成から独立導出。N=1 で **GM identity（λ = competitive half-spread h\*）**＝spread 層との三角検証（D5b v2、旧 `=J` の circular 版は finding 0001 ③ で閉鎖）。
 - **participation margin**: `f·(noise 約定量) − sniping 損 − 機会コスト c`。competitive MM は利益ゼロなので、流動性存続は PnL 符号でなくこの margin の符号（退出判定）で測る。連続 vs batch が退出を反転させるか＝US3。AMM の「fee が LVR を補償→LP 残留か」と同型。
@@ -19,7 +19,9 @@
 - **arbitrageur-predation チャネル**: 高 h（collusive な広い spread）で batch が広い気配を sniping に晒し collusion を**破壊**する力（finding 0001 由来、実験B）。B はこの二力の対決。
 - **committed-quote / revisable-quote**: MM がバッチ内で気配を更新しない（committed＝遅い MM、predation が生きる）か、更新できる（revisable＝純 Budish FBA、sniping 消失）か。design lever の定義に関わる機構選択。
 - **collusion index**: markup ＋ 逸脱に対する懲罰（reward-punishment 構造）の検出。
-- **deviation + punishment test / impulse-response**: 強制 1 期逸脱後に協調が懲罰経由で再確立するかを見る検査。「本物の collusion」と「探索不足の高止まり」を区別する第一級の妥当性検査。
+- **deviation + punishment test / impulse-response**: 強制 1 期逸脱後に協調が懲罰経由で再確立するかを見る検査。「本物の collusion」と「探索不足の高止まり」を区別する第一級の妥当性検査。実装（002）は決定論 rollout＋解析収支（期待 stage payoff）——frozen policy の state は action 履歴のみなので乱数不要。
+- **認定 (certified)**: collusion と呼んでよい点の機械判定（A3×C2 gate の実装、002 verdict）。= markup 有意（seed 平均 − 2SE > 5% floor）∧ impulse-response pass 率 ≥ 0.8（懲罰 ∧ 逸脱不利 ∧ 再確立）∧ 全 seed 収束。markup の高止まりだけでは認定されない。
+- **予算 ledger**: 学習期数の tier 別台帳（coarse/dense/robustness 各 ≤1×10⁹、総 3×10⁹、D-B9）。上限を超える run は起動拒否され、拒否自体も記録される（漸進的予算超過の遮断、B1）。
 - **連続マッチング (continuous matching)**: 価格優先・時間優先の continuous LOB matching、または continuous CFMM swap。ベースライン機構。
 - **batch auction (FBA)**: interval N 期ごとに注文を集約し uniform price で一括 clearing する機構。N はパラメータ。速度競争を除去する設計レバー。
 - **batch interval N**: batch の集約周期。主要 sweep 対象。

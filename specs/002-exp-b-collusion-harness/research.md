@@ -43,7 +43,8 @@
 - **Decision**: ZI 集団 = 各期 grid 上の一様ランダム action。ZI 参照点 = E[実現 spread] = E[min(h_1..h_n)]（一様 i.i.d. の最小値、grid 上の厳密和）。`benchmarks.zi_floor` が解析値を返し、ZIPolicy の sim 実測と test で照合。
 - **訂正（2026-06-10、実装時に確定）**: 設計 docs（research-design §3.4・ontology）の「floor 体系 ZI ≤ myopic-Nash ≤ 実現」は本市場では**誤り**。勝者総取りの spread 競争（Bertrand 型）では、知能（best response）は spread を**下げる**方向に働く：Nash は break-even 近傍（grid 下方）、ZI = E[min h] は grid 支持域の中央寄り。ゆえに一般に **myopic-Nash ≤ ZI** であり、正しい理論的保証は「**myopic-Nash ≤ 学習実現（収束時）**」のみ。ZI は「知能ゼロならどこに出るか」の**中間参照点**として報告し、学習実現が ZI より下（競争学習）か上（協調学習）かが情報になる。default grid での Nash ≤ ZI は test で検査する（grid 設定依存の経験的性質として、定理としてではなく）。
 - **Rationale**: 「メカニズム＋order-flow 制約だけで出る spread」の操作的定義。解析と sim の二重化は battery と同じ規律。誤った順序を invariant としてテストに焼くと、正しい実装が落ちる/誤った実装が通る。
-- **Alternatives**: ZI を sim のみで測る（独立検査にならない）→ 却下。順序主張を維持（導出と矛盾）→ 却下。
+- **系譜の明確化（2026-06-11）**: 本 ZI は**一様 i.i.d.（完全ランダム）**＝制度がランダム行動をどこまで規律するかの系譜であり、実 venue の order-flow 統計に rate を較正するタイプの ZI（外部妥当性・stylized facts 再現用）とは別物。較正を floor に入れると「どこからが知能の寄与か」の分離が経験的構造で汚染されるため、内部参照点は無較正 uniform とする（較正系は ④ 外部アンカーの領分）。拡張余地: 予算制約型の対応物（期待損失非負 arm に制限した uniform＝「無知だが自滅しない」中間点）は benchmarks に追加可能、現状未実装。
+- **Alternatives**: ZI を sim のみで測る（独立検査にならない）→ 却下。順序主張を維持（導出と矛盾）→ 却下。flow 較正型 ZI を floor に使う（分離の汚染）→ 却下（④ の道具）。
 
 ## D-B6. 学習ハイパーと収束判定（経験的安定）
 
@@ -75,7 +76,8 @@
 ## D-B9. compute 予算（B1）= 総 3×10⁹ 学習期・tier 配分固定
 
 - **Decision**: **本 feature の総予算 = 3×10⁹ 学習期**（runner が累計をカウントし、超過する run を起動拒否）。配分：
-  - **Tier-1 coarse ≤ 1×10⁹**: 条件 {cont, batch N=5, batch N=20} × {committed, revisable} = 6 × セル {vol (λ,J) ∈ (5,1),(15,1.5)} × {fee ∈ 0, 0.05·J} × {memory ∈ 1,2} × {n ∈ 2,3} = 16 → 96 条件セル × 5 seed = **480 runs × ≤2×10⁶ 期 ≤ 0.96×10⁹**。
+  - **Tier-1 coarse ≤ 1×10⁹**: 条件 {cont, batch N=5, batch N=20} × {committed, revisable} = 6 × セル {vol (λ,J) ∈ (5,1),(15,1.5)} × {fee ∈ 0, 0.05·J} × {(memory, n) ∈ (1,2),(1,3),(2,2)} = 12 → **72 条件セル × 5 seed = 360 runs × ≤2×10⁶ 期 ≤ 0.72×10⁹**。
+  - **実装注記（2026-06-11, 実行可能性制約）**: 当初の {memory ∈ 1,2} × {n ∈ 2,3} 全積（96 セル）のうち **(memory=2, n=3) は表形式で実行不能**——状態数 |A|^(n·m) = 15⁶ ≈ 1.1×10⁷（Q 表 GB 級・2×10⁶ 期では状態あたり訪問 ~0 でサンプル的にも無意味）。LearnConfig の状態数上限（2×10⁵）が静的検査で拒否する設計が正しく作動した。当該コーナーは関数近似（deep-RL 変種）の領分＝本 feature の明示 scope 外（spec FR-013）。(2,2) は 5×10⁴ 状態 × 2×10⁶ 期 ≈ 訪問 40/状態で「探索的セル」と注記して扱う。
   - **Tier-2 dense ≤ 1×10⁹**: 変調の符号が変わる近傍の局所密 grid（N・vol・fee の細分）。
   - **Tier-3 robustness ≤ 1×10⁹**: SARSA 全 headline 点・α_lr/β/γ 振り・tie 規則第2種・memory 閾値 sweep（認定通過点のみ）・追加 seed（headline ≥20 seed）・impulse-response。
   - 実測 timing（runtime_sec、001 の RunResult に既設）を log し、見積り（5 μs/期）との乖離が ±3× を超えたら予算根拠を research.md に追記して更新する（数値を黙って変えない）。

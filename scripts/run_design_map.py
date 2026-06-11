@@ -34,6 +34,19 @@ from microstructure.designmap import (BudgetExceeded, BudgetLedger, aggregate_ce
                                       run_one_seed, _planned_periods)
 
 
+def _with_overrides(center, args):
+    """cell id に乗らない軸（noise_rate, lr）の中心セル override。適用内容は log に出す。"""
+    ov = {}
+    if args.noise_rate is not None:
+        ov["noise_rate"] = args.noise_rate
+    if args.lr is not None:
+        ov["lr"] = args.lr
+    if ov:
+        print(f"[center] overrides applied: {ov}", flush=True)
+        center = center.replace(**ov)
+    return center
+
+
 def _seed_job(job_idx: int, cfg, seed: int):
     """並列 worker の単位（job_idx でセルを識別——robustness 変種は cell_id が
     衝突しうるため index キー）。"""
@@ -97,6 +110,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", required=True)
     ap.add_argument("--budget-ledger", required=True)
     ap.add_argument("--around", help="dense: 中心 cell-id")
+    ap.add_argument("--noise-rate", type=float,
+                    help="中心セルの noise_rate override（cell id に乗らない軸。"
+                         "density spoke の認定セルを headline に指す用）")
+    ap.add_argument("--lr", type=float, help="中心セルの lr override（同上）")
     ap.add_argument("--dense-axis", choices=["nvol", "density"], default="nvol",
                     help="dense の軸: nvol=N×vol 近傍 / density=事象密度スポーク（finding 0002）")
     ap.add_argument("--headline", help="robustness: cell-id（カンマ区切り）")
@@ -122,7 +139,7 @@ def main(argv: list[str] | None = None) -> int:
     elif args.tier == "dense":
         if not args.around:
             ap.error("--tier dense requires --around <cell-id>")
-        center = parse_cell_id(args.around)
+        center = _with_overrides(parse_cell_id(args.around), args)
         builder = density_spoke if args.dense_axis == "density" else dense_neighbors
         jobs = [(cfg, args.seeds) for cfg in builder(center)]
         tier = "dense"
@@ -131,7 +148,7 @@ def main(argv: list[str] | None = None) -> int:
             ap.error("--tier robustness requires --headline <cell-id,...>")
         jobs = []
         for cid in args.headline.split(","):
-            jobs += robustness_variants(parse_cell_id(cid.strip()))
+            jobs += robustness_variants(_with_overrides(parse_cell_id(cid.strip()), args))
         tier = "robustness"
     else:
         ap.error("either --tier or --cell is required")

@@ -133,6 +133,21 @@ P2 目標文への帰結: 主張 (ii) は肯定枝で立つ——「認定可能
 かつ sniping 規律を切った（revisable）世界でのみ認定される」。BCS 較正点が
 この空間のどこに落ちるか（US4）が監査結論の現実接地になる。
 
+## 数値結果 — US4 BCS 較正セル（2026-06-11 完了、`results/bcs.csv`）
+
+解釈規則は実行前凍結（`prereg-us4-bcs.md`、commit `bf62434`）。判定: **非認定（予測どおり）**。
+
+- **位置づけ（算術）**: BCS 較正の事象密度 pn = ν·dt = 0.0219/s × 0.01s = **2.19×10⁻⁴/期**。
+  認定 headline セル（pn = 0.3）に対し **約 1.4×10³ 倍疎**——現実の ES–SPY は認定可能
+  regime から 3 桁強、疎側に位置する。
+- **較正セル本番 run**（cont / batch10 / batch100 × committed / revisable、5 seed、
+  t_max=2×10⁶）: **6/6 非収束・認定ゼロ**。P2 目標文の最終節
+  「実在 venue は認定可能 regime の外（疎側）」が、算術と run の両方で成立。
+- 方向の残響（非認定・示唆のみ）: committed の cont は markup 0.12±0.06 とほぼ競争水準
+  に規律され、batch で 0.80–0.95 へ、revisable で 1.5–1.9 へ——設計マップと同じ二力の
+  向きが実較正点でも再現。
+- 予算: 総消費 996M 期（coarse 739M / dense 197M / robustness 60M、各 tier cap 内）。
+
 ### 規則 4（従の主張: Δ 帰属、per-seed 決定論再計算、`results/attribution_seeds.*`）
 
 認定 (ν=30, lr=0.15) 上の batch 変調は **n=5 で全分類「無影響」**（±2SE 規則）:

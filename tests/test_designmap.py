@@ -37,6 +37,20 @@ def test_ledger_enforces_cap_and_logs_refusal(tmp_path):
     led2.charge("coarse", 50)                       # 返金分で再び通る
 
 
+def test_ledger_reconcile_is_audited(tmp_path):
+    """crash 精算: 返金額と理由が reconciliations に恒久記録される（黙った減額は不可）。"""
+    path = tmp_path / "budget.json"
+    led = BudgetLedger(path, caps={"coarse": 1000, "dense": 1000, "robustness": 1000})
+    led.charge("coarse", 800)
+    led.reconcile("coarse", 700, "BrokenProcessPool crash — CSV 非生成、決定論的再計算")
+    data = json.loads(path.read_text())
+    assert data["spent"]["coarse"] == 100
+    rec = data["reconciliations"][0]
+    assert rec["tier"] == "coarse" and rec["periods"] == 700 and "crash" in rec["note"]
+    led2 = BudgetLedger(path, caps={"coarse": 1000, "dense": 1000, "robustness": 1000})
+    led2.charge("coarse", 700)                      # 精算分で再実行が通る
+
+
 def test_memory_threshold_gate():
     assert memory_threshold({0: _verdict(False), 1: _verdict(True),
                              2: _verdict(True)}) == 1
@@ -103,3 +117,25 @@ def test_runner_cli_smoke(tmp_path):
     assert out.exists()
     spent = json.loads(ledger.read_text())["spent"]["coarse"]
     assert 0 < spent <= 2 * (4000 + 100 + 400)       # 実消費が記帳されている
+
+
+def test_runner_resume_skips_done_cells(tmp_path):
+    """crash 耐性: セル完了ごとに CSV 追記され、再実行は既存セルを skip して
+    残りだけ回す（charge も skip 分は発生しない）。並列 path も検査。"""
+    out = tmp_path / "map.csv"
+    ledger = tmp_path / "budget.json"
+    base = [sys.executable, "scripts/run_design_map.py", "--tier", "coarse",
+            "--seeds", "1", "--t-max", "4000",
+            "--out", str(out), "--budget-ledger", str(ledger)]
+    cwd = Path(__file__).resolve().parents[1]
+    r1 = subprocess.run(base + ["--limit", "1"], capture_output=True, text=True, cwd=cwd)
+    assert r1.returncode == 0, r1.stderr
+    assert len(out.read_text().strip().splitlines()) == 2          # header + 1 点（追記）
+    spent1 = json.loads(ledger.read_text())["spent"]["coarse"]
+    r2 = subprocess.run(base + ["--limit", "2", "--parallel", "2"],
+                        capture_output=True, text=True, cwd=cwd)
+    assert r2.returncode == 0, r2.stderr
+    assert "[resume] 1/2" in r2.stdout                              # 完了セルを skip
+    assert len(out.read_text().strip().splitlines()) == 3          # 新規 1 点だけ追記
+    spent2 = json.loads(ledger.read_text())["spent"]["coarse"]
+    assert 0 < spent2 - spent1 <= 4000 + 100 + 400                 # skip 分は charge されない

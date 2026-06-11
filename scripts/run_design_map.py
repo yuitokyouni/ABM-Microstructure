@@ -10,6 +10,13 @@ usage:
 予算（学習期数）は BudgetLedger が enforce。超過する run は起動拒否され、拒否も
 ledger に記録される。--t-max/--seeds/--limit は smoke 用の縮小オーバーライド
 （本番予算見積りは LearnConfig 既定の t_max 基準）。
+
+crash 耐性: セルが完了するたび --out に追記し（全完了を待たない）、再実行時は
+既存 --out に載っているセルを skip する（resume）。skip は cell id 単位なので、
+job 列に同一 cell id の変種が混ざる robustness tier では resume を使えない
+（その場合は起動を拒否する——黙って誤対応するより安全側）。worker プロセス喪失は
+当該 job だけ落として続行し、charge は ledger に残る（lost compute の正直な記帳。
+大規模喪失は BudgetLedger.reconcile で監査 entry 付きで精算する）。
 """
 from __future__ import annotations
 
@@ -21,10 +28,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from microstructure.calibrations import get_calibration  # noqa: E402
 from microstructure.designmap import (BudgetExceeded, BudgetLedger, aggregate_cell,  # noqa: E402
-                                      cell_id, coarse_grid, dense_neighbors,
-                                      density_spoke, parse_cell_id,
-                                      robustness_variants, run_cell, run_one_seed,
-                                      write_csv, _planned_periods)
+                                      append_csv, cell_id, coarse_grid,
+                                      dense_neighbors, density_spoke, done_cells,
+                                      parse_cell_id, robustness_variants, run_cell,
+                                      run_one_seed, _planned_periods)
 
 
 def _seed_job(job_idx: int, cfg, seed: int):
@@ -34,8 +41,12 @@ def _seed_job(job_idx: int, cfg, seed: int):
     return job_idx, seed, m, ir, actual, rt
 
 
-def _run_parallel(jobs, ledger, tier, workers):
-    """親プロセスが ledger を専有（charge は submit 前・refund は完了時）。"""
+def _run_parallel(jobs, ledger, tier, workers, out):
+    """親プロセスが ledger を専有（charge は submit 前・refund は完了時）。
+
+    セル完了ごとに out へ追記。worker 喪失は当該 job のみ落として続行する
+    （charge は残る——lost compute の正直な記帳。resume で再実行可能）。
+    """
     from concurrent.futures import ProcessPoolExecutor, as_completed
     points = []
     groups: dict[int, dict] = {}
@@ -51,12 +62,17 @@ def _run_parallel(jobs, ledger, tier, workers):
                     print(f"[budget] submission stopped at job {j}: {e}", flush=True)
                     stop = True
                     break
-                futs[ex.submit(_seed_job, j, cfg, s)] = planned
+                futs[ex.submit(_seed_job, j, cfg, s)] = (j, planned)
             if stop:
                 break
         for fut in as_completed(futs):
-            planned = futs[fut]
-            j, seed, m, ir, actual, rt = fut.result()
+            jf, planned = futs[fut]
+            try:
+                j, seed, m, ir, actual, rt = fut.result()
+            except Exception as e:
+                print(f"[crash] job {jf} ({cell_id(jobs[jf][0])}) worker lost: {e!r}"
+                      f" — charge は残る。resume で再実行", flush=True)
+                continue
             ledger.refund(tier, planned - actual)
             g = groups.setdefault(j, {})
             g[seed] = (m, ir, actual, rt)
@@ -66,6 +82,7 @@ def _run_parallel(jobs, ledger, tier, workers):
                 point = aggregate_cell(cfg, [g[k][0] for k in ss], [g[k][1] for k in ss],
                                        sum(g[k][2] for k in ss), sum(g[k][3] for k in ss))
                 points.append(point)
+                append_csv(point, out)
                 print(f"[{len(points)}/{len(jobs)}] {point.cell}"
                       f" markup={point.markup_mean:.3f}±{point.markup_se:.3f}"
                       f" extr={point.extraction_mean:.4f} cert={point.certified}"
@@ -128,9 +145,23 @@ def main(argv: list[str] | None = None) -> int:
                              measure_periods=min(cfg.measure_periods, args.t_max // 10)),
                  s) for cfg, s in jobs]
 
+    skipped = 0
+    done = done_cells(args.out)
+    if done:
+        ids = [cell_id(cfg) for cfg, _ in jobs]
+        if len(set(ids)) != len(ids):
+            print(f"[resume] cell id が一意でない job 列（robustness 変種等）は resume 不可。"
+                  f"既存 {args.out} を退避してから再実行すること", flush=True)
+            return 2
+        before = len(jobs)
+        jobs = [(cfg, s) for cfg, s in jobs if cell_id(cfg) not in done]
+        skipped = before - len(jobs)
+        print(f"[resume] {skipped}/{before} cells already in {args.out} — skipped",
+              flush=True)
+
     ledger = BudgetLedger(args.budget_ledger)
     if args.parallel > 1:
-        points = _run_parallel(jobs, ledger, tier, args.parallel)
+        points = _run_parallel(jobs, ledger, tier, args.parallel, args.out)
     else:
         points = []
         for i, (cfg, n_seeds) in enumerate(jobs):
@@ -140,13 +171,12 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"[budget] STOP at job {i}/{len(jobs)}: {e}")
                 break
             points.append(point)
+            append_csv(point, args.out)
             print(f"[{i + 1}/{len(jobs)}] {point.cell} markup={point.markup_mean:.3f}"
                   f"±{point.markup_se:.3f} extr={point.extraction_mean:.4f}"
                   f" cert={point.certified} conv={point.converged_frac:.1f}"
                   f" ({point.runtime_sec:.1f}s)", flush=True)
-    if points:
-        write_csv(points, args.out)
-    print(f"done: {len(points)} points → {args.out}; "
+    print(f"done: {len(points)} new points (+{skipped} resumed) → {args.out}; "
           f"budget spent {ledger.total_spent:,} periods "
           f"({len(ledger.data['refusals'])} refusals)")
     return 0

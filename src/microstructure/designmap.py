@@ -13,7 +13,7 @@ import csv
 import json
 import math
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
 import numpy as np
@@ -105,6 +105,19 @@ class BudgetLedger:
 
     def refund(self, tier: str, periods: int) -> None:
         """予約（t_max ベース）と実消費の差を返金。"""
+        self.data["spent"][tier] = max(0, self.data["spent"][tier] - int(periods))
+        self._save()
+
+    def reconcile(self, tier: str, periods: int, note: str) -> None:
+        """成果物として保持されなかった run の charge を、監査 entry 付きで返金する。
+
+        黙った refund と違い `reconciliations` に {tier, periods, note} を恒久記録する
+        （D-B9「数値を黙って変えない」）。適用前提: D-B12 の決定論により、同一の
+        事前登録 grid の再実行は bit 同一の再計算であって追加サンプリングではない。
+        保持成果物（CSV）が背書きする期数は返金対象にしない。
+        """
+        self.data.setdefault("reconciliations", []).append(
+            {"tier": tier, "periods": int(periods), "note": note})
         self.data["spent"][tier] = max(0, self.data["spent"][tier] - int(periods))
         self._save()
 
@@ -353,3 +366,32 @@ def write_csv(points: list[DesignMapPoint], path: str | Path) -> None:
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         w.writeheader()
         w.writerows(rows)
+
+
+def append_csv(point: DesignMapPoint, path: str | Path) -> None:
+    """1 点を追記する（crash 耐性: セル完了ごとに永続化、run 全完了を待たない）。"""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    names = [f.name for f in fields(DesignMapPoint)]
+    new = not path.exists()
+    if not new:
+        with open(path, newline="", encoding="utf-8") as f:
+            header = next(csv.reader(f), None)
+        if header != names:
+            raise ValueError(
+                f"{path} の既存 header が現 schema と不一致——古い CSV へは追記しない。"
+                f"別の --out を指定するか退避すること")
+    with open(path, "a", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=names)
+        if new:
+            w.writeheader()
+        w.writerow(asdict(point))
+
+
+def done_cells(path: str | Path) -> set[str]:
+    """既存 out CSV に完了済みとして載っている cell id 集合（resume の skip 判定）。"""
+    path = Path(path)
+    if not path.exists():
+        return set()
+    with open(path, newline="", encoding="utf-8") as f:
+        return {row["cell"] for row in csv.DictReader(f)}

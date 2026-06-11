@@ -67,6 +67,7 @@ classDiagram
     path : Path
     total_spent : int
     charge(tier: str, periods: int) None
+    reconcile(tier: str, periods: int, note: str) None
     refund(tier: str, periods: int) None
   }
   class Calibration {

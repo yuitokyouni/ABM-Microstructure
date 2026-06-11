@@ -133,6 +133,17 @@ P2 目標文への帰結: 主張 (ii) は肯定枝で立つ——「認定可能
 かつ sniping 規律を切った（revisable）世界でのみ認定される」。BCS 較正点が
 この空間のどこに落ちるか（US4）が監査結論の現実接地になる。
 
+### 規則 4（従の主張: Δ 帰属、per-seed 決定論再計算、`results/attribution_seeds.*`）
+
+認定 (ν=30, lr=0.15) 上の batch 変調は **n=5 で全分類「無影響」**（±2SE 規則）:
+Δ_total(N=5) = −0.91 ± 1.16、Δ_GP(N=5) = +8.00 ± 15.36、Δ_pred(N=5) = −8.92 ± 15.15
+（N=20 も同様に null）。revisable 世界の seed 間分散が巨大で、5 seed では方向を
+主張できない——**従の主張はここで正直に縮む**（事前登録の縮退規則どおり、
+変調の確定主張はしない）。符号は Δ_GP 正・Δ_pred 負と二力の予測と整合する向きだが、
+有意性なし。注記: batch5-revisable が認定し cont-revisable が非認定だった差は
+markup 水準差（+8.0 ± 15.4、無意味）ではなく**収束 frac の差**（1.0 vs 0.6）に由来。
+変調の検出力を上げる正当な経路は D-B9 Tier-3（headline ≥20 seed）のみ。
+
 ## 関連
 
 - 設計: `specs/002-exp-b-collusion-harness/research.md` D-B6（v2）/ D-B9

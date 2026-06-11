@@ -66,6 +66,7 @@ classDiagram
     data : dict
     path : Path
     total_spent : int
+    audit(subject: str, note: str) None
     charge(tier: str, periods: int) None
     reconcile(tier: str, periods: int, note: str) None
     refund(tier: str, periods: int) None

@@ -13,7 +13,9 @@ import csv
 import hashlib
 import json
 import math
+import os
 import time
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
@@ -88,7 +90,12 @@ class BudgetExceeded(RuntimeError):
 
 
 class BudgetLedger:
-    """学習期数の予算台帳（JSON 永続）。charge は run 起動**前**に呼び、超過なら拒否。"""
+    """学習期数の予算台帳（JSON 永続）。charge は run 起動**前**に呼び、超過なら拒否。
+
+    並行性: 全ての更新は lock file + read-modify-write で直列化する（2026-06-11 の
+    incident——複数プロセスの ledger instance が JSON を丸ごと last-writer-wins で
+    上書きし、audits と charge が lost update した——への恒久対策。0002a 追記参照）。
+    """
 
     DEFAULT_CAPS = {"coarse": 1_000_000_000, "dense": 1_000_000_000,
                     "robustness": 1_000_000_000}
@@ -96,6 +103,9 @@ class BudgetLedger:
     def __init__(self, path: str | Path, caps: dict[str, int] | None = None) -> None:
         self.path = Path(path)
         self.caps = dict(self.DEFAULT_CAPS if caps is None else caps)
+        self._reload()
+
+    def _reload(self) -> None:
         if self.path.exists():
             self.data = json.loads(self.path.read_text())
         else:
@@ -103,27 +113,50 @@ class BudgetLedger:
         for t in self.caps:
             self.data["spent"].setdefault(t, 0)
 
+    @contextmanager
+    def _locked(self):
+        """lock file を握って最新状態を再読込してから更新する（プロセス間直列化）。"""
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        lock = self.path.with_suffix(".lock")
+        deadline = time.monotonic() + 30.0
+        while True:
+            try:
+                fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                break
+            except FileExistsError:
+                if time.monotonic() > deadline:
+                    raise TimeoutError(f"ledger lock timeout: {lock}（stale なら手で消す）")
+                time.sleep(0.05)
+        try:
+            self._reload()
+            yield
+        finally:
+            os.close(fd)
+            os.unlink(lock)
+
     def _save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text(json.dumps(self.data, indent=1))
 
     def charge(self, tier: str, periods: int) -> None:
-        spent = self.data["spent"][tier]
-        if spent + periods > self.caps[tier]:
-            self.data["refusals"].append(
-                {"tier": tier, "requested": int(periods), "spent_at_refusal": int(spent),
-                 "cap": int(self.caps[tier])})
+        with self._locked():
+            spent = self.data["spent"][tier]
+            if spent + periods > self.caps[tier]:
+                self.data["refusals"].append(
+                    {"tier": tier, "requested": int(periods),
+                     "spent_at_refusal": int(spent), "cap": int(self.caps[tier])})
+                self._save()
+                raise BudgetExceeded(
+                    f"tier '{tier}': {spent} + {periods} > cap {self.caps[tier]} "
+                    f"(D-B9。拒否は ledger に記録済み)")
+            self.data["spent"][tier] = spent + int(periods)
             self._save()
-            raise BudgetExceeded(
-                f"tier '{tier}': {spent} + {periods} > cap {self.caps[tier]} "
-                f"(D-B9。拒否は ledger に記録済み)")
-        self.data["spent"][tier] = spent + int(periods)
-        self._save()
 
     def refund(self, tier: str, periods: int) -> None:
         """予約（t_max ベース）と実消費の差を返金。"""
-        self.data["spent"][tier] = max(0, self.data["spent"][tier] - int(periods))
-        self._save()
+        with self._locked():
+            self.data["spent"][tier] = max(0, self.data["spent"][tier] - int(periods))
+            self._save()
 
     def reconcile(self, tier: str, periods: int, note: str) -> None:
         """成果物として保持されなかった run の charge を、監査 entry 付きで返金する。
@@ -133,10 +166,18 @@ class BudgetLedger:
         事前登録 grid の再実行は bit 同一の再計算であって追加サンプリングではない。
         保持成果物（CSV）が背書きする期数は返金対象にしない。
         """
-        self.data.setdefault("reconciliations", []).append(
-            {"tier": tier, "periods": int(periods), "note": note})
-        self.data["spent"][tier] = max(0, self.data["spent"][tier] - int(periods))
-        self._save()
+        with self._locked():
+            self.data.setdefault("reconciliations", []).append(
+                {"tier": tier, "periods": int(periods), "note": note})
+            self.data["spent"][tier] = max(0, self.data["spent"][tier] - int(periods))
+            self._save()
+
+    def audit(self, subject: str, note: str) -> None:
+        """監査メモを ledger に恒久記録する（lock 下で消えない）。"""
+        with self._locked():
+            self.data.setdefault("audits", []).append(
+                {"subject": subject, "note": note})
+            self._save()
 
     @property
     def total_spent(self) -> int:

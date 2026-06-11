@@ -51,6 +51,23 @@ def test_ledger_reconcile_is_audited(tmp_path):
     led2.charge("coarse", 700)                      # 精算分で再実行が通る
 
 
+def test_ledger_concurrent_instances_do_not_clobber(tmp_path):
+    """並行 instance の lost-update 防止: 各更新は lock + 再読込で直列化されるので、
+    instance A の charge 後に instance B（A より先に生成）が charge しても合算が残る。
+    audits も refund の上書きで消えない（2026-06-11 incident の回帰テスト）。"""
+    path = tmp_path / "budget.json"
+    caps = {"coarse": 1000, "dense": 1000, "robustness": 1000}
+    a = BudgetLedger(path, caps=caps)
+    b = BudgetLedger(path, caps=caps)          # A の書込み前に生成（古い in-memory 状態）
+    a.charge("coarse", 100)
+    b.charge("coarse", 200)                    # 旧実装なら A の 100 が消える
+    a.audit("test", "audit entry survives")
+    b.refund("coarse", 50)                     # 旧実装なら audits ごと上書き
+    led = BudgetLedger(path, caps=caps)
+    assert led.data["spent"]["coarse"] == 250
+    assert led.data["audits"][0]["subject"] == "test"
+
+
 def test_memory_threshold_gate():
     assert memory_threshold({0: _verdict(False), 1: _verdict(True),
                              2: _verdict(True)}) == 1

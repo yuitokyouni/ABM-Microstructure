@@ -50,7 +50,31 @@ HP 感度一覧が解釈不能であり、さらに override（--noise-rate/--lr
 - 検査を売る側の信用は宣言では作れない。**自分のパイプラインに同じ規律を適用し、
   実際に汚染を未読のまま破棄した**という記録がその代替物になる。
 
+## 追記 — 同日第2の自己検出: ledger 並行書き込みの lost update（2026-06-11）
+
+**事象**: BudgetLedger は読み込んだ JSON を更新のたび丸ごと書き戻す（last-writer-wins）
+設計で、単一書き手を暗黙に仮定していた。並行 background run（Tier-3 / bcs_per_seed /
+attribution）が同一 ledger を共有した結果、**監査 entry（audits[0]）が消え、charge も
+lost update していた**（再構成で dense +35.0M、robustness +14.1M の計上漏れが判明）。
+
+**検出**: 外部レビューの要求（audits への一行追記）を実行しようとして KeyError——
+書いたはずの audits[0] が存在しない、という形で表面化。監査記録自体が消えたことが
+検出器になった。
+
+**対応**: (1) lock file + read-modify-write で全更新を直列化（`BudgetLedger._locked`）、
+回帰テスト追加（並行 instance の charge 合算と audits 生存）。(2) 全 tier の spent を
+**artifacts から決定論的に再構成**: 各 CSV の periods_total は per-run の実消費を
+持ち、attribution の再計算 run は D-B12 により既存 run と同一（density/tier3 の値を
+そのまま流用可能）。唯一実測が無い部分（attr20 の新規 15 seed × 5 条件）は planned
+上限で計上——予算の目的（B1）に対して安全側。再構成前後: dense 375.4M → 410.4M、
+robustness 176.9M → 191.0M、coarse 不変。全 tier cap 内。audits を lock 下で再記録。
+
+**教訓**: 単一書き手の仮定は守られない——強制されていない不変条件は incident の
+予約である（キー衝突と同型）。そして今回も復旧を可能にしたのは決定論＋artifacts
+（periods_total の永続化）だった。三点セットに第4の要素を足す:
+**台帳の更新はプロセス間で直列化されていなければならない**。
+
 ## 関連
 
 - 修正 commit: `990eddc`（schema + テスト + 文言確定）／ 精算: `results/budget.json`
-  reconciliations[1]・audits[0] ／ 凍結: `prereg-tier3.md` §2.1 注記・§2.5
+  reconciliations[1]・audits ／ 凍結: `prereg-tier3.md` §2.1 注記・§2.5

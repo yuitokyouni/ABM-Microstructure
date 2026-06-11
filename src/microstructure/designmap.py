@@ -92,7 +92,7 @@ class BudgetExceeded(RuntimeError):
 class BudgetLedger:
     """学習期数の予算台帳（JSON 永続）。charge は run 起動**前**に呼び、超過なら拒否。
 
-    並行性と監査可能性（2026-06-11 incident 対応、0002a 追記参照）:
+    並行性と監査可能性（2026-06-11 incident 対応、findings/0002b 参照）:
     - 全ての更新は lock file + read-modify-write で直列化（lost update の遮断）。
     - **台帳の一次記録は追記専用 journal**（`<path>.journal.jsonl`、1 行 1 イベント）。
       snapshot（JSON の spent）は journal の fold のキャッシュに格下げ——上書きで

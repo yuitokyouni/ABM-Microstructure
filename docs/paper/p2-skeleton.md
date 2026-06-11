@@ -1,6 +1,10 @@
 # P2 論文 skeleton — Calvano 型アルゴ共謀の移植可能性監査
 
-**Status**: skeleton v1（2026-06-11）。venue 判断（EC / JEDC）待ち。
+**Status**: skeleton v1.1（2026-06-12）。**venue 確定: JEDC 主**（随時投稿、査読文化適合、
+読者=Atlas 採用候補コミュニティ、フルレングスで prereg chain + incident exhibits を収容）。
+**arXiv 即時公開＋標的引用（Calvano 系・Klein・Banchio-Skrzypacz へ直接送付）＋
+JPX WP トラック並走**。理論化（疎報酬非収束の証明）が立てば companion を EC 2027-02 に
+出す含みを残す。本文化の節順: **§4 → §5.1 → §5.2 → §6**（substance-led）。
 導出規則: 学会向け一文から逆算。二レンズが背骨。降格は事前規定文体のまま。
 0002a/b は appendix exhibit。Limitations は §9.3 一覧＋クローズ条件 1–3 を反映。
 

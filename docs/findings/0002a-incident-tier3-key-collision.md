@@ -50,57 +50,11 @@ HP 感度一覧が解釈不能であり、さらに override（--noise-rate/--lr
 - 検査を売る側の信用は宣言では作れない。**自分のパイプラインに同じ規律を適用し、
   実際に汚染を未読のまま破棄した**という記録がその代替物になる。
 
-## 追記 — 同日第2の自己検出: ledger 並行書き込みの lost update（2026-06-11）
+## 関連 incident
 
-**事象**: BudgetLedger は読み込んだ JSON を更新のたび丸ごと書き戻す（last-writer-wins）
-設計で、単一書き手を暗黙に仮定していた。並行 background run（Tier-3 / bcs_per_seed /
-attribution）が同一 ledger を共有した結果、**監査 entry（audits[0]）が消え、charge も
-lost update していた**（再構成で dense +35.0M、robustness +14.1M の計上漏れが判明）。
-
-**検出**: 外部レビューの要求（audits への一行追記）を実行しようとして KeyError——
-書いたはずの audits[0] が存在しない、という形で表面化。監査記録自体が消えたことが
-検出器になった。
-
-**対応**: (1) lock file + read-modify-write で全更新を直列化（`BudgetLedger._locked`）、
-回帰テスト追加（並行 instance の charge 合算と audits 生存）。(2) 全 tier の spent を
-**artifacts から決定論的に再構成**: 各 CSV の periods_total は per-run の実消費を
-持ち、attribution の再計算 run は D-B12 により既存 run と同一（density/tier3 の値を
-そのまま流用可能）。唯一実測が無い部分（attr20 の新規 15 seed × 5 条件）は planned
-上限で計上——予算の目的（B1）に対して安全側。再構成前後: dense 375.4M → 410.4M、
-robustness 176.9M → 191.0M、coarse 不変。全 tier cap 内。audits を lock 下で再記録。
-(3) **意思決定影響の有界化**（数値の修正と判定の非汚染証明は別の言明）: 汚染
-ウィンドウ中に gate を通過した run を列挙し、真値（再構成）のピークが全 tier で
-cap を恒常的に下回る（739/410/191M vs 1G）こと＝観測値がいくら過小でも誤通過は
-論理的に発生し得ず、refusals 0 件ゆえ誤拒否も無いことを ledger の audit entry に
-記録（`decision-impact bounding`）。二大 reconciliation（739.2M / 120.8M）の生存は
-artifacts 照合で確認（coarse 再構成値が pilot2+coarse.csv と厳密一致）。
-(4) **根治 = 台帳の追記化**: lock は対症療法で、根本原因は可変状態の丸ごと
-read-modify-write。charge/refund/reconcile/audit を**追記専用 journal**
-（`budget.journal.jsonl`、1 行 1 イベント）として記録し、spent は journal の fold
-として導出（`rebuild_spent`）、snapshot はキャッシュへ格下げ（`verify` で一致を
-機械検査、snapshot 破損→journal 復元の回帰テスト付き）。lost update は型として
-起き得なくなり、再構成は例外処理ではなく通常動作になった。
-
-**差分表（snapshot 観測値 vs journal/artifacts 再構成値、forensic）**:
-
-| tier | 観測（再構成前） | 再構成 | Δ | Δ の帰属 |
-|---|---|---|---|---|
-| coarse | 739,236,803 | 739,236,803 | 0 | 汚染ウィンドウ中の更新なし |
-| dense | 375,424,143 | 410,444,094 | **+35,019,951** | 喪失 event ＋ attr20 未実測 75 run の planned 上限計上（保守側余剰 ≥ 0）の**混合**。journal 導入前ゆえ event 単位の分解は不能——これ自体が追記台帳の論拠 |
-| robustness | 176,910,853 | 190,981,553 | **+14,070,700** | **純粋な lost update**（全成分が厳密: bcs.csv 60,303,000 + tier3.csv 110,577,553 + bcs_per_seed 20,101,000=非収束で planned=actual）。charge 約 7 event 相当が tier3×bcs_per_seed の interleave で喪失 |
-
-報告系列との照合: 「dense 197M」= attr20 投入前（density+attr5 = 196,752,058、これは
-再構成でも不変）。「robustness 211M」= tier3 の planned 見積り（60+151M）であって
-実測系列ではない——実測は tier3 の早期収束 refund で 110.6M に縮み、bcs_per_seed
-20.1M が加わって 191.0M。全 Δ が正（観測の過小）なのは「charge 喪失 > refund 喪失」
-と整合（charge は 2.01M/event と大きく、refund は早期収束分のみで小さい）。
-**bounding との関係**: 判定の無汚染証明（前項 (3)）は「真値ピーク < cap」にのみ
-依拠し、Δ の大きさにも出自にも依存しない。
-
-**教訓**: 単一書き手の仮定は守られない——強制されていない不変条件は incident の
-予約である（キー衝突と同型）。復旧を可能にしたのは今回も決定論＋artifacts
-（periods_total の永続化）だった。一般化:
-**スナップショット上書きは台帳ではない——台帳とは追記ログのことである。**
+同日に第2の自己検出（ledger スナップショット上書きによる lost update）が発生した。
+教訓が別（同一性キー≠表示キー vs スナップショット上書きは台帳ではない）なので、
+独立 exhibit として分離: **`0002b-incident-ledger-snapshot.md`**。
 
 ## 関連
 
